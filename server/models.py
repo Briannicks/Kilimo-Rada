@@ -3,7 +3,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import validates
+from sqlalchemy.orm import validates  # type: ignore[reportMissingImports]
 
 from config import bcrypt, db
 
@@ -91,6 +91,96 @@ class User(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
+class Report(db.Model):
+    __tablename__ = "reports"
+
+    CATEGORIES = ("pest", "disease", "weather", "other")
+    STATUSES = ("open", "resolved")
+
+    id = db.Column(db.Integer, primary_key=True)
+    farmer_id = db.Column(db.Integer, db.ForeignKey("farmers.id"), nullable=False)
+    category = db.Column(db.String(20), nullable=False, default="other")
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="open")
+    reply = db.Column(db.Text)
+    replied_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+    farmer = db.relationship(
+        "Farmer", backref=db.backref("reports", cascade="all, delete-orphan")
+    )
+    replied_by = db.relationship("User", backref="replies")
+
+    @validates("category")
+    def validate_category(self, key, value):
+        value = (value or "other").lower()
+        if value not in self.CATEGORIES:
+            raise ValueError(f"Category must be one of {self.CATEGORIES}")
+        return value
+
+    @validates("status")
+    def validate_status(self, key, value):
+        if value not in self.STATUSES:
+            raise ValueError(f"Status must be one of {self.STATUSES}")
+        return value
+
+    @validates("description")
+    def validate_description(self, key, value):
+        value = (value or "").strip()
+        if len(value) < 3:
+            raise ValueError("Description is too short")
+        return value
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "category": self.category,
+            "description": self.description,
+            "status": self.status,
+            "reply": self.reply,
+            "replied_by": self.replied_by.name if self.replied_by else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "farmer": {
+                "id": self.farmer.id,
+                "name": self.farmer.name,
+                "phone": self.farmer.phone,
+                "ward": self.farmer.ward,
+            } if self.farmer else None,
+        }
+
+
+class MarketPrice(db.Model):
+    __tablename__ = "market_prices"
+
+    id = db.Column(db.Integer, primary_key=True)
+    crop = db.Column(db.String(50), nullable=False)
+    market = db.Column(db.String(100), nullable=False)
+    unit = db.Column(db.String(30), nullable=False)
+    price = db.Column(db.Integer, nullable=False)  # KES
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)  # owner
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
+
+    owner = db.relationship("User", backref="prices")
+
+    @validates("crop", "market")
+    def validate_names(self, key, value):
+        value = (value or "").strip().title()
+        if not value:
+            raise ValueError(f"{key} is required")
+        return value
+
+    @validates("unit")
+    def validate_unit(self, key, value):
+        value = (value or "").strip()
+        if not value:
+            raise ValueError("unit is required, e.g. '90kg bag'")
+        return value
+
+    @validates("price")
+    def validate_price(self, key, value):
+        value = int(value)
+        if value <= 0:
+            raise ValueError("Price must be greater than 0")
 class Farmer(db.Model):
     __tablename__ = "farmers"
 
@@ -141,6 +231,14 @@ class Farmer(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "crop": self.crop,
+            "market": self.market,
+            "unit": self.unit,
+            "price": self.price,
+            "user_id": self.user_id,
+            "posted_by": self.owner.name if self.owner else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
             "name": self.name,
             "phone": self.phone,
             "ward": self.ward,
