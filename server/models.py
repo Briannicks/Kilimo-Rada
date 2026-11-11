@@ -91,3 +91,61 @@ class User(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
+class Farmer(db.Model):
+    __tablename__ = "farmers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    phone = db.Column(db.String(20), unique=True, nullable=False)
+    ward = db.Column(db.String(100))
+    main_crop = db.Column(db.String(50))
+    registered_via = db.Column(db.String(10), nullable=False, default="web")
+    added_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))  # null = self-registered on USSD
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+    added_by = db.relationship("User", backref="farmers_added")
+
+    @staticmethod
+    def normalize_phone(phone):
+        phone = re.sub(r"[\s\-]", "", phone or "")
+        if phone.startswith("0"):
+            phone = "+254" + phone[1:]
+        elif phone.startswith("254"):
+            phone = "+" + phone
+        return phone
+
+    @validates("phone")
+    def validate_phone(self, key, value):
+        value = self.normalize_phone(value)
+        if not re.match(r"^\+254[17]\d{8}$", value):
+            raise ValueError("Phone must be a valid Kenyan number, e.g. 0712345678")
+        return value
+
+    @validates("name")
+    def validate_name(self, key, value):
+        value = (value or "").strip()
+        if len(value) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return value
+
+    @validates("ward", "main_crop")
+    def clean_text(self, key, value):
+        return value.strip().title() if value else None
+
+    @validates("registered_via")
+    def validate_registered_via(self, key, value):
+        if value not in ("ussd", "web"):
+            raise ValueError("registered_via must be 'ussd' or 'web'")
+        return value
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "phone": self.phone,
+            "ward": self.ward,
+            "main_crop": self.main_crop,
+            "registered_via": self.registered_via,
+            "added_by_id": self.added_by_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
