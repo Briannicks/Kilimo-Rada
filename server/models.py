@@ -1,5 +1,4 @@
-"""All KilimoRada models.
-Each person writes ONLY inside their own section to avoid merge conflicts."""
+
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
