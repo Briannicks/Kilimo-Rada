@@ -244,3 +244,39 @@ class MarketPrice(db.Model):
             raise ValueError("Price must be greater than 0")
 
 
+class Broadcast(db.Model):
+    __tablename__ = "broadcasts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    message = db.Column(db.String(160), nullable=False)
+    target_crop = db.Column(db.String(50))  # None = all farmers
+    recipient_count = db.Column(db.Integer, default=0)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)  # sender
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+    sender = db.relationship("User", backref="broadcasts")
+
+    @validates("message")
+    def validate_message(self, key, value):
+        value = (value or "").strip()
+        if not value:
+            raise ValueError("Message cannot be empty")
+        if len(value) > 160:
+            raise ValueError("Message must be 160 characters or less (1 SMS)")
+        return value
+
+    @validates("target_crop")
+    def clean_crop(self, key, value):
+        return value.strip().title() if value else None
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "message": self.message,
+            "target_crop": self.target_crop or "All farmers",
+            "recipient_count": self.recipient_count,
+            "sender": self.sender.name if self.sender else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
