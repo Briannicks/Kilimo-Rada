@@ -1,0 +1,11 @@
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Bcrypt
+flasgger
+python-dotenv
+psycopg2-binary
+africastalking
+sendgrid
+cloudinary
+gunicorn
