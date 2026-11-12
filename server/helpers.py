@@ -13,3 +13,7 @@ def paginate(query):
         "total": result.total,
         "pages": result.pages,
     }
+
+def get_data():
+    """Reads JSON body safely (returns {} instead of crashing)."""
+    return request.get_json(silent=True) or {}
