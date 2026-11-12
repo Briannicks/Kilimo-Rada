@@ -18,3 +18,9 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 ).replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+#configure seesions, security and swagger
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 8  # 8 hours
+app.config["TWO_FACTOR_ENABLED"] = os.environ.get("TWO_FACTOR_ENABLED", "true").lower() == "true"
+app.config["SWAGGER"] = {"title": "KilimoRada API", "uiversion": 3}
