@@ -5,3 +5,11 @@ def paginate(query):
     Use ?page=1&per_page=10 in the URL."""
     page = request.args.get("page", 1, type=int)
     per_page = min(request.args.get("per_page", 10, type=int), 50)
+    result = query.paginate(page=page, per_page=per_page, error_out=False)
+    return {
+        "items": [item.to_dict() for item in result.items],
+        "page": result.page,
+        "per_page": result.per_page,
+        "total": result.total,
+        "pages": result.pages,
+    }
