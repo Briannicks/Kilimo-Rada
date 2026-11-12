@@ -9,3 +9,4 @@ africastalking
 sendgrid
 cloudinary
 gunicorn
+google-genai
