@@ -37,3 +37,14 @@ with app.app_context():
         ))
     db.session.add_all(farmers)
     db.session.commit()
+    print("Creating reports...")
+    reports = [
+        Report(farmer=farmers[0], category="pest", description="Fall armyworm on young maize"),
+        Report(farmer=farmers[1], category="disease", description="Bean leaves turning yellow"),
+        Report(farmer=farmers[2], category="disease", description="Potato blight after heavy rain"),
+        Report(farmer=farmers[4], category="weather", description="Hailstorm damaged tea bushes"),
+        Report(farmer=farmers[5], category="pest", description="Stalk borer in maize"),
+        Report(farmer=farmers[7], category="other", description="Where can I buy certified bean seed?",
+               status="resolved", reply="Visit the KALRO office in Njoro.", replied_by=officer),
+    ]
+    db.session.add_all(reports)
