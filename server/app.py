@@ -43,3 +43,6 @@ def method_not_allowed(error):
 def server_error(error):
     db.session.rollback()
     return {"error": "Something went wrong on the server"}, 500
+
+if __name__ == "__main__":
+    app.run(port=5555, debug=True)
