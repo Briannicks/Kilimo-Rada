@@ -28,3 +28,12 @@ with app.app_context():
         ("Joseph Langat", "0712000009", "Tinet", "Avocado"),
         ("Ann Wambui", "0712000010", "Lanet", "Maize"),
     ]
+    farmers = []
+    for i, (name, phone, ward, crop) in enumerate(farmer_data):
+        via = "ussd" if i % 2 == 0 else "web"
+        farmers.append(Farmer(
+            name=name, phone=phone, ward=ward, main_crop=crop,
+            registered_via=via, added_by=None if via == "ussd" else officer,
+        ))
+    db.session.add_all(farmers)
+    db.session.commit()
