@@ -57,4 +57,13 @@ with app.app_context():
         MarketPrice(crop="Avocado", market="Nakuru", unit="kg", price=60, owner=officer),
     ]
     db.session.add_all(prices)
-    
+    print("Creating broadcasts...")
+    db.session.add_all([
+        Broadcast(message="Fall armyworm reported in Tinet. Inspect your maize this week.",
+                  target_crop="Maize", recipient_count=4, sender=admin),
+        Broadcast(message="Heavy rains expected. Clear drainage around your farms.",
+                  recipient_count=10, sender=officer),
+    ])
+    db.session.commit()
+
+    print("Done! Log in with admin@kilimorada.app / password123")
