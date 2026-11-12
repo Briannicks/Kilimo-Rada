@@ -48,3 +48,13 @@ with app.app_context():
                status="resolved", reply="Visit the KALRO office in Njoro.", replied_by=officer),
     ]
     db.session.add_all(reports)
+    print("Creating market prices...")
+    prices = [
+        MarketPrice(crop="Maize", market="Nakuru", unit="90kg bag", price=3800, owner=admin),
+        MarketPrice(crop="Maize", market="Eldoret", unit="90kg bag", price=3600, owner=officer),
+        MarketPrice(crop="Beans", market="Nakuru", unit="90kg bag", price=9500, owner=officer),
+        MarketPrice(crop="Potatoes", market="Molo", unit="50kg bag", price=2200, owner=admin),
+        MarketPrice(crop="Avocado", market="Nakuru", unit="kg", price=60, owner=officer),
+    ]
+    db.session.add_all(prices)
+    
