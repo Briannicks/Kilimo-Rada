@@ -15,3 +15,16 @@ with app.app_context():
     officer.password = "password123"
     db.session.add_all([admin, officer])
     db.session.commit()
+    print("Creating farmers...")
+    farmer_data = [
+        ("John Kiprop", "0712000001", "Tinet", "Maize"),
+        ("Mary Chebet", "0712000002", "Tinet", "Beans"),
+        ("Peter Mwangi", "0712000003", "Lanet", "Potatoes"),
+        ("Grace Wanjiku", "0712000004", "Lanet", "Maize"),
+        ("David Otieno", "0712000005", "Kuresoi", "Tea"),
+        ("Faith Jeptoo", "0712000006", "Kuresoi", "Maize"),
+        ("Samuel Kibet", "0712000007", "Molo", "Potatoes"),
+        ("Esther Njeri", "0712000008", "Molo", "Beans"),
+        ("Joseph Langat", "0712000009", "Tinet", "Avocado"),
+        ("Ann Wambui", "0712000010", "Lanet", "Maize"),
+    ]
