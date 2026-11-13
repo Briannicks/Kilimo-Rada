@@ -1,4 +1,5 @@
 from flask import Blueprint, request
+from rpds import List
 
 from config import db
 from helpers import get_data, paginate
@@ -12,35 +13,16 @@ bp = Blueprint("users", __name__)
 @bp.get("/users")
 @admin_required
 def list_users():
-    """List all staff accounts (admin only)
-    ---
-    tags: [Users]
-    parameters:
-      - {name: page, in: query, type: integer}
-      - {name: per_page, in: query, type: integer}
-    responses:
-      200: {description: Paginated users}
-      403: {description: Admins only}
-    """
+    #List all staff accounts (admin only)
+    
     return paginate(User.query.order_by(User.created_at.desc())), 200
 
 
 @bp.patch("/users/<int:user_id>/role")
 @admin_required
 def change_role(user_id):
-    """Make a user admin or officer (admin only)
-    ---
-    tags: [Users]
-    parameters:
-      - {name: user_id, in: path, type: integer, required: true}
-      - in: body
-        name: body
-        schema:
-          example: {role: admin}
-    responses:
-      200: {description: Role updated}
-      400: {description: Cannot change your own role}
-    """
+    #Make a user admin or officer (admin only)
+   
     user = db.get_or_404(User, user_id)
     if user.id == current_user().id:
         return {"error": "You cannot change your own role"}, 400
@@ -52,17 +34,8 @@ def change_role(user_id):
 @bp.patch("/users/me")
 @login_required
 def update_profile():
-    """Update my name and/or avatar. Send JSON {name}, or form-data with 'name' and an 'avatar' file.
-    ---
-    tags: [Users]
-    consumes: [multipart/form-data, application/json]
-    parameters:
-      - {name: name, in: formData, type: string}
-      - {name: avatar, in: formData, type: file}
-    responses:
-      200: {description: Profile updated}
-      422: {description: Invalid name or image}
-    """
+    #Update my name and/or avatar. Send JSON {name}, or form-data with 'name' and an 'avatar' file.
+
     user = current_user()
     data = request.form if (request.form or request.files) else get_data()
 
@@ -78,12 +51,8 @@ def update_profile():
 @bp.get("/dashboard")
 @login_required
 def dashboard():
-    """Numbers for the dashboard home page
-    ---
-    tags: [Dashboard]
-    responses:
-      200: {description: Summary counts and recent reports}
-    """
+    #Numbers for the dashboard home page
+
     categories = {
         category: Report.query.filter_by(category=category).count()
         for category in Report.CATEGORIES
