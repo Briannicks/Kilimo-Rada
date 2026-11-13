@@ -6,6 +6,9 @@ from config import db
 from helpers import get_data, paginate
 from models import Agrovet, AiQuestion, InputReport, UssdProfile, VerifiedProduct
 from routes.auth import admin_required, current_user, login_required
+from schemas.ussd_schemas import (
+    agrovet_schema, ai_question_schema, batch_code_schema, input_report_schema,
+)
 
 bp = Blueprint("registry", __name__)
 
@@ -20,7 +23,7 @@ def list_batch_codes():
     responses:
       200: {description: Paginated batch codes}
     """
-    return paginate(VerifiedProduct.query.order_by(VerifiedProduct.created_at.desc())), 200
+    return paginate(VerifiedProduct.query.order_by(VerifiedProduct.created_at.desc()), batch_code_schema), 200
 
 
 @bp.post("/batch-codes")
@@ -38,17 +41,11 @@ def add_batch_code():
       201: {description: Added}
       409: {description: Code already exists}
     """
-    data = get_data()
-    product = VerifiedProduct(
-        batch_code=data.get("batch_code"),
-        product=data.get("product"),
-        manufacturer=data.get("manufacturer"),
-        status=data.get("status", "genuine"),
-        added_by=current_user(),
-    )
+    data = batch_code_schema.load(get_data())
+    product = VerifiedProduct(**data, added_by=current_user())
     db.session.add(product)
     db.session.commit()
-    return product.to_dict(), 201
+    return batch_code_schema.dump(product), 201
 
 
 @bp.patch("/batch-codes/<int:product_id>")
@@ -67,12 +64,10 @@ def update_batch_code(product_id):
       200: {description: Updated}
     """
     product = db.get_or_404(VerifiedProduct, product_id)
-    data = get_data()
-    for field in ("batch_code", "product", "manufacturer", "status"):
-        if field in data:
-            setattr(product, field, data[field])
+    for field, value in batch_code_schema.load(get_data(), partial=True).items():
+        setattr(product, field, value)
     db.session.commit()
-    return product.to_dict(), 200
+    return batch_code_schema.dump(product), 200
 
 
 @bp.delete("/batch-codes/<int:product_id>")
@@ -101,7 +96,7 @@ def list_agrovets():
     responses:
       200: {description: Paginated agrovets}
     """
-    return paginate(Agrovet.query.order_by(Agrovet.created_at.desc())), 200
+    return paginate(Agrovet.query.order_by(Agrovet.created_at.desc()), agrovet_schema), 200
 
 
 @bp.post("/agrovets")
@@ -118,17 +113,11 @@ def add_agrovet():
     responses:
       201: {description: Added}
     """
-    data = get_data()
-    agrovet = Agrovet(
-        name=data.get("name"),
-        ward=data.get("ward"),
-        phone=data.get("phone"),
-        license_no=data.get("license_no"),
-        added_by=current_user(),
-    )
+    data = agrovet_schema.load(get_data())
+    agrovet = Agrovet(**data, added_by=current_user())
     db.session.add(agrovet)
     db.session.commit()
-    return agrovet.to_dict(), 201
+    return agrovet_schema.dump(agrovet), 201
 
 
 @bp.patch("/agrovets/<int:agrovet_id>")
@@ -143,12 +132,10 @@ def update_agrovet(agrovet_id):
       200: {description: Updated}
     """
     agrovet = db.get_or_404(Agrovet, agrovet_id)
-    data = get_data()
-    for field in ("name", "ward", "phone", "license_no"):
-        if field in data:
-            setattr(agrovet, field, data[field])
+    for field, value in agrovet_schema.load(get_data(), partial=True).items():
+        setattr(agrovet, field, value)
     db.session.commit()
-    return agrovet.to_dict(), 200
+    return agrovet_schema.dump(agrovet), 200
 
 
 @bp.delete("/agrovets/<int:agrovet_id>")
@@ -183,7 +170,7 @@ def list_input_reports():
     kind = request.args.get("kind", "").strip()
     if kind:
         query = query.filter_by(kind=kind)
-    return paginate(query.order_by(InputReport.created_at.desc())), 200
+    return paginate(query.order_by(InputReport.created_at.desc()), input_report_schema), 200
 
 
 @bp.get("/ai-questions")
@@ -195,7 +182,7 @@ def list_ai_questions():
     responses:
       200: {description: Paginated questions}
     """
-    return paginate(AiQuestion.query.order_by(AiQuestion.created_at.desc())), 200
+    return paginate(AiQuestion.query.order_by(AiQuestion.created_at.desc()), ai_question_schema), 200
 
 
 @bp.get("/ussd-stats")

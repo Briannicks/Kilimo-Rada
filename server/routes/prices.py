@@ -4,10 +4,9 @@ from config import db
 from helpers import get_data, paginate
 from models import MarketPrice
 from routes.auth import current_user, login_required
+from schemas.report_schemas import price_schema
 
 bp = Blueprint("prices", __name__)
-
-EDITABLE_FIELDS = ("crop", "market", "unit", "price")
 
 
 def can_edit(price):
@@ -37,7 +36,7 @@ def list_prices():
     market = request.args.get("market", "").strip()
     if market:
         query = query.filter(MarketPrice.market.ilike(market))
-    return paginate(query.order_by(MarketPrice.updated_at.desc())), 200
+    return paginate(query.order_by(MarketPrice.updated_at.desc()), price_schema), 200
 
 
 @bp.post("/prices")
@@ -55,17 +54,11 @@ def create_price():
       201: {description: Price created}
       422: {description: Invalid data}
     """
-    data = get_data()
-    price = MarketPrice(
-        crop=data.get("crop"),
-        market=data.get("market"),
-        unit=data.get("unit"),
-        price=data.get("price"),
-        owner=current_user(),
-    )
+    data = price_schema.load(get_data())
+    price = MarketPrice(**data, owner=current_user())
     db.session.add(price)
     db.session.commit()
-    return price.to_dict(), 201
+    return price_schema.dump(price), 201
 
 
 @bp.patch("/prices/<int:price_id>")
@@ -88,12 +81,10 @@ def update_price(price_id):
     if not can_edit(price):
         return {"error": "You can only edit prices you posted"}, 403
 
-    data = get_data()
-    for field in EDITABLE_FIELDS:
-        if field in data:
-            setattr(price, field, data[field])
+    for field, value in price_schema.load(get_data(), partial=True).items():
+        setattr(price, field, value)
     db.session.commit()
-    return price.to_dict(), 200
+    return price_schema.dump(price), 200
 
 
 @bp.delete("/prices/<int:price_id>")

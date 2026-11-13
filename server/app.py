@@ -1,12 +1,13 @@
+from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from config import app, db
 import models  # noqa: F401  (registers the tables)
 from routes import register_routes
-#connect api endpoints to flask
+
 register_routes(app)
 
-#check whether api endpoint is workin
+
 @app.get("/api/health")
 def health():
     """Health check
@@ -17,6 +18,8 @@ def health():
         description: Server is running
     """
     return {"status": "ok"}, 200
+
+
 # ---------- Error handlers (one place for the whole app) ----------
 @app.errorhandler(ValueError)
 def validation_error(error):
@@ -25,10 +28,19 @@ def validation_error(error):
     return {"error": str(error)}, 422
 
 
+@app.errorhandler(ValidationError)
+def schema_error(error):
+    """Any schema.load() error becomes a 422 listing each bad field."""
+    db.session.rollback()
+    return {"error": "Invalid data", "errors": error.messages}, 422
+
+
 @app.errorhandler(IntegrityError)
 def integrity_error(error):
     db.session.rollback()
     return {"error": "That record already exists or is linked to missing data"}, 409
+
+
 @app.errorhandler(404)
 def not_found(error):
     return {"error": "Not found"}, 404
@@ -43,6 +55,7 @@ def method_not_allowed(error):
 def server_error(error):
     db.session.rollback()
     return {"error": "Something went wrong on the server"}, 500
+
 
 if __name__ == "__main__":
     app.run(port=5555, debug=True)
