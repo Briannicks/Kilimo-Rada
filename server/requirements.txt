@@ -12,3 +12,4 @@ gunicorn
 google-genai
 pytest
 marshmallow
+psycopg[binary]

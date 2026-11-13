@@ -18,6 +18,16 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
 ).replace("postgres://", "postgresql://", 1)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+
+if app.config["SQLALCHEMY_DATABASE_URI"].startswith("postgresql"):
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_size": 5,
+        "max_overflow": 2,
+        "pool_pre_ping": True,   # reconnect if Supabase closed an idle connection
+        "pool_recycle": 300,     # refresh connections every 5 minutes
+    }
+
+    
 #configure seesions, security and swagger
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
