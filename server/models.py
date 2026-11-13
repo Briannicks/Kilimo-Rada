@@ -13,7 +13,7 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-
+# ===== Cheruu: User =====
 class User(db.Model):
     __tablename__ = "users"
 
@@ -29,7 +29,7 @@ class User(db.Model):
     otp_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=utcnow)
 
-   
+    # ---- password (write-only) ----
     @property
     def password(self):
         raise AttributeError("Password is write-only")
@@ -43,7 +43,7 @@ class User(db.Model):
     def authenticate(self, plain_password):
         return bcrypt.check_password_hash(self.password_hash, plain_password)
 
-   
+    # ---- 2FA one-time code ----
     def generate_otp(self, minutes=5):
         """Creates a 6-digit code, stores only its hash, returns the plain code to email."""
         code = f"{secrets.randbelow(1_000_000):06d}"
@@ -62,7 +62,7 @@ class User(db.Model):
         self.otp_expires_at = None
         return True
 
-    
+    # ---- validation ----
     @validates("name")
     def validate_name(self, key, value):
         value = (value or "").strip()
@@ -84,7 +84,7 @@ class User(db.Model):
         return value
 
 
-
+# ===== Mwangi: Farmer =====
 class Farmer(db.Model):
     __tablename__ = "farmers"
 
@@ -134,7 +134,7 @@ class Farmer(db.Model):
         return value
 
 
-
+# ===== Michie: Report, MarketPrice =====
 class Report(db.Model):
     __tablename__ = "reports"
 
@@ -214,7 +214,7 @@ class MarketPrice(db.Model):
         return value
 
 
-
+# ===== Wayne: Broadcast + USSD trust tables =====
 class Broadcast(db.Model):
     __tablename__ = "broadcasts"
 
