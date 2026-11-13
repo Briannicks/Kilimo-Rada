@@ -1,4 +1,4 @@
-# KilimoRada 🌱
+# KilimoRada 
  
 KilimoRada helps Kenyan farmers on basic phones get trusted farming information through **USSD and SMS**, with no smartphone or internet needed.
  
