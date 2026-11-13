@@ -10,3 +10,4 @@ sendgrid
 cloudinary
 gunicorn
 google-genai
+pytest
