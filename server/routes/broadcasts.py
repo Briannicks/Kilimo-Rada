@@ -1,10 +1,17 @@
-from flask import Blueprint
+from flask import Blueprint  # type: ignore[reportMissingImports]
 
 from config import db
-from helpers import get_data, paginate
+
+try:
+    from ..helpers import get_data, paginate  # type: ignore[reportMissingImports]
+except ImportError:  # pragma: no cover - direct script execution
+    try:
+        from server.helpers import get_data, paginate  # type: ignore[reportMissingImports]
+    except ImportError:  # pragma: no cover - direct script execution
+        from helpers import get_data, paginate  # type: ignore[reportMissingImports]
+
 from models import Broadcast, Farmer
 from routes.auth import current_user, login_required
-from schemas.ussd_schemas import broadcast_schema
 from services import send_sms
 
 bp = Blueprint("broadcasts", __name__)
@@ -22,7 +29,7 @@ def list_broadcasts():
     responses:
       200: {description: Paginated broadcasts}
     """
-    return paginate(Broadcast.query.order_by(Broadcast.created_at.desc()), broadcast_schema), 200
+    return paginate(Broadcast.query.order_by(Broadcast.created_at.desc())), 200
 
 
 @bp.post("/broadcasts")
@@ -41,10 +48,11 @@ def send_broadcast():
       400: {description: No farmers match}
       422: {description: Message empty or over 160 characters}
     """
-    # The schema checks the message (1-160 characters) BEFORE any SMS goes out
-    data = broadcast_schema.load(get_data())
-    target_crop = data.get("target_crop") or None
-    broadcast = Broadcast(message=data["message"], target_crop=target_crop)
+    data = get_data()
+    target_crop = (data.get("target_crop") or "").strip() or None
+
+    # Build the Broadcast first so the message is validated BEFORE any SMS goes out
+    broadcast = Broadcast(message=data.get("message"), target_crop=target_crop)
 
     query = Farmer.query
     if target_crop:
@@ -59,6 +67,6 @@ def send_broadcast():
     db.session.add(broadcast)
     db.session.commit()
 
-    response = broadcast_schema.dump(broadcast)
+    response = broadcast.to_dict()
     response["sms"] = result
     return response, 201

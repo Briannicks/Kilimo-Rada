@@ -13,7 +13,7 @@ bp = Blueprint("auth", __name__)
 MAX_OTP_ATTEMPTS = 5
 
 
-
+# Helpers everyone imports
 def current_user():
     """Returns the logged-in User, or None."""
     user_id = session.get("user_id")
@@ -59,24 +59,13 @@ def send_new_code(user):
     session["otp_attempts"] = 0
 
 
-
+# Routes
 @bp.post("/signup")
 def signup():
-    """Create an account (the very first user becomes admin)
-    ---
-    tags: [Auth]
-    parameters:
-      - in: body
-        name: body
-        schema:
-          example: {name: Jane Wanjiru, email: jane@example.com, password: password123}
-    responses:
-      201: {description: Account created and logged in}
-      409: {description: Email already registered}
-      422: {description: Invalid data}
-    """
-    data = signup_schema.load(get_data())
-    email = data["email"].lower()
+    #Create an account (the very first user becomes admin)
+    
+    data = get_data()
+    email = (data.get("email") or "").strip().lower()
     if User.query.filter_by(email=email).first():
         return {"error": "Email already registered"}, 409
 
@@ -92,20 +81,11 @@ def signup():
 
 @bp.post("/login")
 def login():
-    """Step 1 of login: check password, then email a 6-digit code
-    ---
-    tags: [Auth]
-    parameters:
-      - in: body
-        name: body
-        schema:
-          example: {email: admin@kilimorada.app, password: password123}
-    responses:
-      200: {description: Code sent (or logged in if 2FA is off)}
-      401: {description: Wrong email or password}
-    """
-    data = login_schema.load(get_data())
-    user = User.query.filter_by(email=data["email"].lower()).first()
+    #Step 1 of login: check password, then email a 6-digit code
+    
+    data = get_data()
+    email = (data.get("email") or "").strip().lower()
+    user = User.query.filter_by(email=email).first()
 
     if not user or not user.authenticate(data["password"]):
         return {"error": "Invalid email or password"}, 401
@@ -125,19 +105,8 @@ def login():
 
 @bp.post("/verify-otp")
 def verify_otp():
-    """Step 2 of login: check the emailed code and start the session
-    ---
-    tags: [Auth]
-    parameters:
-      - in: body
-        name: body
-        schema:
-          example: {code: "123456"}
-    responses:
-      200: {description: Logged in}
-      401: {description: Wrong or expired code}
-      429: {description: Too many attempts}
-    """
+    #Step 2 of login: check the emailed code and start the session
+
     user_id = session.get("pending_user_id")
     user = db.session.get(User, user_id) if user_id else None
     if not user:
@@ -160,13 +129,8 @@ def verify_otp():
 
 @bp.post("/resend-otp")
 def resend_otp():
-    """Send a new login code
-    ---
-    tags: [Auth]
-    responses:
-      200: {description: New code sent}
-      401: {description: No login in progress}
-    """
+    #Send a new login code
+
     user_id = session.get("pending_user_id")
     user = db.session.get(User, user_id) if user_id else None
     if not user:
@@ -177,13 +141,8 @@ def resend_otp():
 
 @bp.get("/me")
 def me():
-    """Current logged-in user (frontend calls this on page load)
-    ---
-    tags: [Auth]
-    responses:
-      200: {description: The logged-in user}
-      401: {description: Not logged in}
-    """
+    #Current logged-in user (frontend calls this on page load)
+
     user = current_user()
     if not user:
         return {"error": "Not logged in"}, 401
@@ -192,11 +151,7 @@ def me():
 
 @bp.delete("/logout")
 def logout():
-    """Log out
-    ---
-    tags: [Auth]
-    responses:
-      204: {description: Logged out}
-    """
+    #Log out
+
     session.clear()
     return {}, 204

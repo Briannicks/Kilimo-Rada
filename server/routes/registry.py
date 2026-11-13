@@ -1,5 +1,4 @@
-"""Dashboard routes for the trust features: batch code registry, agrovets,
-fake input reports, AI questions and USSD stats."""
+#Dashboard routes for the trust features: batch code registry, agrovets, fake input reports, AI questions and USSD stats.
 from flask import Blueprint, request
 
 from config import db
@@ -13,36 +12,28 @@ from schemas.ussd_schemas import (
 bp = Blueprint("registry", __name__)
 
 
-# ---------- batch code registry ----------
+# Batch code registry
 @bp.get("/batch-codes")
 @login_required
 def list_batch_codes():
-    """Official batch code registry
-    ---
-    tags: [Trust]
-    responses:
-      200: {description: Paginated batch codes}
-    """
-    return paginate(VerifiedProduct.query.order_by(VerifiedProduct.created_at.desc()), batch_code_schema), 200
+    #Official batch code registry
+    
+    return paginate(VerifiedProduct.query.order_by(VerifiedProduct.created_at.desc())), 200
 
 
 @bp.post("/batch-codes")
 @admin_required
 def add_batch_code():
-    """Add a batch code from KEPHIS / PCPB / manufacturer records (admin only)
-    ---
-    tags: [Trust]
-    parameters:
-      - in: body
-        name: body
-        schema:
-          example: {batch_code: ABC123, product: DAP 50kg, manufacturer: Company name, status: genuine}
-    responses:
-      201: {description: Added}
-      409: {description: Code already exists}
-    """
-    data = batch_code_schema.load(get_data())
-    product = VerifiedProduct(**data, added_by=current_user())
+    #Add a batch code from KEPHIS / PCPB / manufacturer records (admin only)
+    
+    data = get_data()
+    product = VerifiedProduct(
+        batch_code=data.get("batch_code"),
+        product=data.get("product"),
+        manufacturer=data.get("manufacturer"),
+        status=data.get("status", "genuine"),
+        added_by=current_user(),
+    )
     db.session.add(product)
     db.session.commit()
     return batch_code_schema.dump(product), 201
@@ -51,18 +42,8 @@ def add_batch_code():
 @bp.patch("/batch-codes/<int:product_id>")
 @admin_required
 def update_batch_code(product_id):
-    """Edit a batch code, e.g. mark it fake (admin only)
-    ---
-    tags: [Trust]
-    parameters:
-      - {name: product_id, in: path, type: integer, required: true}
-      - in: body
-        name: body
-        schema:
-          example: {status: fake}
-    responses:
-      200: {description: Updated}
-    """
+    #Edit a batch code, e.g. mark it fake (admin only)
+    
     product = db.get_or_404(VerifiedProduct, product_id)
     for field, value in batch_code_schema.load(get_data(), partial=True).items():
         setattr(product, field, value)
@@ -73,48 +54,35 @@ def update_batch_code(product_id):
 @bp.delete("/batch-codes/<int:product_id>")
 @admin_required
 def delete_batch_code(product_id):
-    """Delete a batch code (admin only)
-    ---
-    tags: [Trust]
-    parameters:
-      - {name: product_id, in: path, type: integer, required: true}
-    responses:
-      204: {description: Deleted}
-    """
+    #Delete a batch code (admin only)
+
     db.session.delete(db.get_or_404(VerifiedProduct, product_id))
     db.session.commit()
     return {}, 204
 
 
-# ---------- verified agrovets ----------
+# Verified agrovets
 @bp.get("/agrovets")
 @login_required
 def list_agrovets():
-    """Verified agrovets
-    ---
-    tags: [Trust]
-    responses:
-      200: {description: Paginated agrovets}
-    """
-    return paginate(Agrovet.query.order_by(Agrovet.created_at.desc()), agrovet_schema), 200
+    #Verified agrovets
+    
+    return paginate(Agrovet.query.order_by(Agrovet.created_at.desc())), 200
 
 
 @bp.post("/agrovets")
 @admin_required
 def add_agrovet():
-    """Add a verified agrovet (admin only)
-    ---
-    tags: [Trust]
-    parameters:
-      - in: body
-        name: body
-        schema:
-          example: {name: Shop name, ward: Tinet, phone: "0712345678", license_no: PCPB-123}
-    responses:
-      201: {description: Added}
-    """
-    data = agrovet_schema.load(get_data())
-    agrovet = Agrovet(**data, added_by=current_user())
+    #Add a verified agrovet (admin only)
+
+    data = get_data()
+    agrovet = Agrovet(
+        name=data.get("name"),
+        ward=data.get("ward"),
+        phone=data.get("phone"),
+        license_no=data.get("license_no"),
+        added_by=current_user(),
+    )
     db.session.add(agrovet)
     db.session.commit()
     return agrovet_schema.dump(agrovet), 201
@@ -123,14 +91,8 @@ def add_agrovet():
 @bp.patch("/agrovets/<int:agrovet_id>")
 @admin_required
 def update_agrovet(agrovet_id):
-    """Edit an agrovet (admin only)
-    ---
-    tags: [Trust]
-    parameters:
-      - {name: agrovet_id, in: path, type: integer, required: true}
-    responses:
-      200: {description: Updated}
-    """
+    #Edit an agrovet (admin only)
+    
     agrovet = db.get_or_404(Agrovet, agrovet_id)
     for field, value in agrovet_schema.load(get_data(), partial=True).items():
         setattr(agrovet, field, value)
@@ -141,31 +103,19 @@ def update_agrovet(agrovet_id):
 @bp.delete("/agrovets/<int:agrovet_id>")
 @admin_required
 def delete_agrovet(agrovet_id):
-    """Remove an agrovet (admin only)
-    ---
-    tags: [Trust]
-    parameters:
-      - {name: agrovet_id, in: path, type: integer, required: true}
-    responses:
-      204: {description: Deleted}
-    """
+    #Remove an agrovet (admin only)
+    
     db.session.delete(db.get_or_404(Agrovet, agrovet_id))
     db.session.commit()
     return {}, 204
 
 
-# ---------- reports from farmers ----------
+# Reports from farmers
 @bp.get("/input-reports")
 @login_required
 def list_input_reports():
-    """Fake input / scam reports from USSD (phone numbers masked)
-    ---
-    tags: [Trust]
-    parameters:
-      - {name: kind, in: query, type: string, enum: [batch_code, scam_number]}
-    responses:
-      200: {description: Paginated reports}
-    """
+    #Fake input / scam reports from USSD (phone numbers masked)
+    
     query = InputReport.query
     kind = request.args.get("kind", "").strip()
     if kind:
@@ -176,24 +126,16 @@ def list_input_reports():
 @bp.get("/ai-questions")
 @login_required
 def list_ai_questions():
-    """Questions farmers asked the AI expert, with the answers sent
-    ---
-    tags: [Trust]
-    responses:
-      200: {description: Paginated questions}
-    """
-    return paginate(AiQuestion.query.order_by(AiQuestion.created_at.desc()), ai_question_schema), 200
+    #Questions farmers asked the AI expert, with the answers sent
+   
+    return paginate(AiQuestion.query.order_by(AiQuestion.created_at.desc())), 200
 
 
 @bp.get("/ussd-stats")
 @login_required
 def ussd_stats():
-    """USSD numbers for the dashboard
-    ---
-    tags: [Trust]
-    responses:
-      200: {description: Counts and most-reported codes}
-    """
+    #USSD numbers for the dashboard
+    
     count = db.func.count(InputReport.id)
     most_reported = (
         db.session.query(InputReport.value, InputReport.kind, count)

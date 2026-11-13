@@ -1,4 +1,4 @@
-"""Helpers for the USSD: navigation, safe text, weather, AI answers, background SMS."""
+#Helpers for the USSD: navigation, safe text, weather, AI answers, background SMS.
 import json
 import os
 import re
@@ -21,7 +21,7 @@ MAX_SMS_ANSWER = 140
 _weather_cache = {}  # county -> (time fetched, data)
 
 
-# ---------- navigation and safe text ----------
+# Navigation and safe text
 def clean_steps(text):
     """Applies 0 = back and 00 = main menu to the inputs joined by '*'."""
     steps = []
@@ -50,7 +50,7 @@ def end(body):
     return Response(("END " + safe_text(body))[:MAX_USSD_CHARS], mimetype="text/plain")
 
 
-# ---------- background work (so USSD replies instantly) ----------
+# Background work (so USSD replies instantly)
 def run_in_background(function, *args):
     app = current_app._get_current_object()
 
@@ -65,7 +65,7 @@ def sms_later(phone, message):
     run_in_background(send_sms, [phone], safe_text(message))
 
 
-# ---------- prices from the database ----------
+# Prices from the database
 def price_lines(item, limit=3):
     prices = (
         MarketPrice.query.filter(MarketPrice.crop.ilike(item))
@@ -84,7 +84,7 @@ def price_text(item, lang):
     return t["prices_for"].format(item=item) + "\n" + "\n".join(lines)
 
 
-# ---------- live weather (Open-Meteo, free, no key) ----------
+# Live weather (Open-Meteo, free, no key)
 def weather_text(county, lang):
     t = TEXT[lang]
     cached = _weather_cache.get(county)
@@ -113,7 +113,7 @@ def weather_text(county, lang):
     )
 
 
-# ---------- Ask Expert (Gemini) ----------
+# Ask Expert (Gemini AI)
 def questions_this_hour(phone):
     since = utcnow() - timedelta(hours=1)
     return AiQuestion.query.filter(AiQuestion.phone == phone, AiQuestion.created_at >= since).count()
@@ -162,7 +162,7 @@ def answer_question(question_id):
         db.session.commit()
 
 
-# ---------- fake input reports ----------
+# Fake input reports
 def new_reference():
     while True:
         ref = "KR" + "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(5))

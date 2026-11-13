@@ -2,7 +2,7 @@ from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from config import app, db
-import models  # noqa: F401  (registers the tables)
+import models 
 from routes import register_routes
 
 register_routes(app)
@@ -18,12 +18,10 @@ def health():
         description: Server is running
     """
     return {"status": "ok"}, 200
-
-
-# ---------- Error handlers (one place for the whole app) ----------
+# Error handlers (one place for the whole app)
 @app.errorhandler(ValueError)
 def validation_error(error):
-    """Any @validates error in models becomes a clean 422 response."""
+    #Any @validates error in models becomes a clean 422 response.
     db.session.rollback()
     return {"error": str(error)}, 422
 

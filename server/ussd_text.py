@@ -1,5 +1,5 @@
-"""All USSD wording (English + Kiswahili) and fixed menu items.
-Prices, agrovets and batch codes are NOT here - they come from the database."""
+#All USSD wording (English + Kiswahili) and fixed menu items.
+#Prices, agrovets and batch codes are NOT here - they come from the database.
 
 FERTILIZERS = ["DAP", "CAN", "NPK"]
 SEEDS = ["Maize Seed", "Bean Seed", "Tomato Seed"]

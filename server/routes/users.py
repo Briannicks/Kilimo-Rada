@@ -1,12 +1,10 @@
 from flask import Blueprint, request
+from rpds import List
 
 from config import db
 from helpers import get_data, paginate
 from models import Broadcast, Farmer, MarketPrice, Report, User
 from routes.auth import admin_required, current_user, login_required
-from schemas.auth_schemas import user_schema
-from schemas.profile_schemas import profile_schema, role_schema
-from schemas.report_schemas import report_schema
 from services import upload_image
 
 bp = Blueprint("users", __name__)
@@ -15,79 +13,46 @@ bp = Blueprint("users", __name__)
 @bp.get("/users")
 @admin_required
 def list_users():
-    """List all staff accounts (admin only)
-    ---
-    tags: [Users]
-    parameters:
-      - {name: page, in: query, type: integer}
-      - {name: per_page, in: query, type: integer}
-    responses:
-      200: {description: Paginated users}
-      403: {description: Admins only}
-    """
-    return paginate(User.query.order_by(User.created_at.desc()), user_schema), 200
+    #List all staff accounts (admin only)
+    
+    return paginate(User.query.order_by(User.created_at.desc())), 200
 
 
 @bp.patch("/users/<int:user_id>/role")
 @admin_required
 def change_role(user_id):
-    """Make a user admin or officer (admin only)
-    ---
-    tags: [Users]
-    parameters:
-      - {name: user_id, in: path, type: integer, required: true}
-      - in: body
-        name: body
-        schema:
-          example: {role: admin}
-    responses:
-      200: {description: Role updated}
-      400: {description: Cannot change your own role}
-    """
+    #Make a user admin or officer (admin only)
+   
     user = db.get_or_404(User, user_id)
     if user.id == current_user().id:
         return {"error": "You cannot change your own role"}, 400
-    user.role = role_schema.load(get_data())["role"]
+    user.role = get_data().get("role")
     db.session.commit()
-    return user_schema.dump(user), 200
+    return user.to_dict(), 200
 
 
 @bp.patch("/users/me")
 @login_required
 def update_profile():
-    """Update my name and/or avatar. Send JSON {name}, or form-data with 'name' and an 'avatar' file.
-    ---
-    tags: [Users]
-    consumes: [multipart/form-data, application/json]
-    parameters:
-      - {name: name, in: formData, type: string}
-      - {name: avatar, in: formData, type: file}
-    responses:
-      200: {description: Profile updated}
-      422: {description: Invalid name or image}
-    """
-    user = current_user()
-    raw = request.form if (request.form or request.files) else get_data()
-    data = profile_schema.load(raw)
+    #Update my name and/or avatar. Send JSON {name}, or form-data with 'name' and an 'avatar' file.
 
-    if "name" in data:
-        user.name = data["name"]
+    user = current_user()
+    data = request.form if (request.form or request.files) else get_data()
+
+    if data.get("name"):
+        user.name = data.get("name")
     if "avatar" in request.files:
         user.avatar_url = upload_image(request.files["avatar"])
 
     db.session.commit()
-    return user_schema.dump(user), 200
+    return user.to_dict(), 200
 
 
 @bp.get("/dashboard")
 @login_required
 def dashboard():
-    """Numbers for the dashboard home page
-    ---
-    tags: [Dashboard]
-    responses:
-      200: {description: Summary counts and recent reports}
-    """
+    #Numbers for the dashboard home page
+
     categories = {
         category: Report.query.filter_by(category=category).count()
         for category in Report.CATEGORIES
@@ -103,5 +68,5 @@ def dashboard():
         "broadcasts_sent": Broadcast.query.count(),
         "sms_sent": int(sms_sent),
         "reports_by_category": categories,
-        "recent_reports": report_schema.dump(recent, many=True),
+        "recent_reports": [report.to_dict() for report in recent],
     }, 200
