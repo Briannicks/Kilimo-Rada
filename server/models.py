@@ -1,15 +1,17 @@
-
+"""All KilimoRada models.
+Each person writes ONLY inside their own section to avoid merge conflicts."""
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import validates  # type: ignore[reportMissingImports]
+from sqlalchemy.orm import validates
 
 from config import bcrypt, db
 
 
 def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 
 class User(db.Model):
@@ -27,7 +29,7 @@ class User(db.Model):
     otp_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=utcnow)
 
-    
+   
     @property
     def password(self):
         raise AttributeError("Password is write-only")
@@ -41,7 +43,7 @@ class User(db.Model):
     def authenticate(self, plain_password):
         return bcrypt.check_password_hash(self.password_hash, plain_password)
 
-    
+   
     def generate_otp(self, minutes=5):
         """Creates a 6-digit code, stores only its hash, returns the plain code to email."""
         code = f"{secrets.randbelow(1_000_000):06d}"
@@ -56,7 +58,7 @@ class User(db.Model):
             return False
         if not bcrypt.check_password_hash(self.otp_hash, str(code).strip()):
             return False
-        self.otp_hash = None          
+        self.otp_hash = None          # a code can only be used once
         self.otp_expires_at = None
         return True
 
@@ -81,15 +83,6 @@ class User(db.Model):
             raise ValueError(f"Role must be one of {self.ROLES}")
         return value
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "email": self.email,
-            "role": self.role,
-            "avatar_url": self.avatar_url,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
 
 
 class Farmer(db.Model):
@@ -140,17 +133,7 @@ class Farmer(db.Model):
             raise ValueError("registered_via must be 'ussd' or 'web'")
         return value
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "phone": self.phone,
-            "ward": self.ward,
-            "main_crop": self.main_crop,
-            "registered_via": self.registered_via,
-            "added_by_id": self.added_by_id,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
+
 
 class Report(db.Model):
     __tablename__ = "reports"
@@ -192,23 +175,6 @@ class Report(db.Model):
             raise ValueError("Description is too short")
         return value
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "category": self.category,
-            "description": self.description,
-            "status": self.status,
-            "reply": self.reply,
-            "replied_by": self.replied_by.name if self.replied_by else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "farmer": {
-                "id": self.farmer.id,
-                "name": self.farmer.name,
-                "phone": self.farmer.phone,
-                "ward": self.farmer.ward,
-            } if self.farmer else None,
-        }
-
 
 class MarketPrice(db.Model):
     __tablename__ = "market_prices"
@@ -239,9 +205,14 @@ class MarketPrice(db.Model):
 
     @validates("price")
     def validate_price(self, key, value):
-        value = int(value)
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            raise ValueError("Price must be a whole number in KES")
         if value <= 0:
             raise ValueError("Price must be greater than 0")
+        return value
+
 
 
 class Broadcast(db.Model):
@@ -268,18 +239,6 @@ class Broadcast(db.Model):
     @validates("target_crop")
     def clean_crop(self, key, value):
         return value.strip().title() if value else None
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "message": self.message,
-            "target_crop": self.target_crop or "All farmers",
-            "recipient_count": self.recipient_count,
-            "sender": self.sender.name if self.sender else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-
 
 
 def mask_phone(phone):
@@ -314,16 +273,6 @@ class AiQuestion(db.Model):
     language = db.Column(db.String(2), default="en")
     created_at = db.Column(db.DateTime, default=utcnow)
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "phone": mask_phone(self.phone),
-            "question": self.question,
-            "answer": self.answer,
-            "language": self.language,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
 
 class InputReport(db.Model):
     """Farmer reports of fake batch codes or scam phone numbers (option 8)."""
@@ -350,16 +299,6 @@ class InputReport(db.Model):
         if len(value) < 3:
             raise ValueError("Code or number is too short")
         return value
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "reference": self.reference,
-            "reported_by": mask_phone(self.phone),
-            "kind": self.kind,
-            "value": self.value,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
 
 
 class VerifiedProduct(db.Model):
@@ -398,17 +337,6 @@ class VerifiedProduct(db.Model):
             raise ValueError(f"Status must be one of {self.STATUSES}")
         return value
 
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "batch_code": self.batch_code,
-            "product": self.product,
-            "manufacturer": self.manufacturer,
-            "status": self.status,
-            "added_by": self.added_by.name if self.added_by else None,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
 
 class Agrovet(db.Model):
     """Agrovet shops an admin has verified (option 7)."""
@@ -437,15 +365,3 @@ class Agrovet(db.Model):
         if not re.match(r"^\+254[17]\d{8}$", value):
             raise ValueError("Phone must be a valid Kenyan number, e.g. 0712345678")
         return value
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "ward": self.ward,
-            "phone": self.phone,
-            "license_no": self.license_no,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-

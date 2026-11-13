@@ -5,6 +5,9 @@ from config import db
 from helpers import get_data, paginate
 from models import Agrovet, AiQuestion, InputReport, UssdProfile, VerifiedProduct
 from routes.auth import admin_required, current_user, login_required
+from schemas.ussd_schemas import (
+    agrovet_schema, ai_question_schema, batch_code_schema, input_report_schema,
+)
 
 bp = Blueprint("registry", __name__)
 
@@ -33,7 +36,7 @@ def add_batch_code():
     )
     db.session.add(product)
     db.session.commit()
-    return product.to_dict(), 201
+    return batch_code_schema.dump(product), 201
 
 
 @bp.patch("/batch-codes/<int:product_id>")
@@ -42,12 +45,10 @@ def update_batch_code(product_id):
     #Edit a batch code, e.g. mark it fake (admin only)
     
     product = db.get_or_404(VerifiedProduct, product_id)
-    data = get_data()
-    for field in ("batch_code", "product", "manufacturer", "status"):
-        if field in data:
-            setattr(product, field, data[field])
+    for field, value in batch_code_schema.load(get_data(), partial=True).items():
+        setattr(product, field, value)
     db.session.commit()
-    return product.to_dict(), 200
+    return batch_code_schema.dump(product), 200
 
 
 @bp.delete("/batch-codes/<int:product_id>")
@@ -84,7 +85,7 @@ def add_agrovet():
     )
     db.session.add(agrovet)
     db.session.commit()
-    return agrovet.to_dict(), 201
+    return agrovet_schema.dump(agrovet), 201
 
 
 @bp.patch("/agrovets/<int:agrovet_id>")
@@ -93,12 +94,10 @@ def update_agrovet(agrovet_id):
     #Edit an agrovet (admin only)
     
     agrovet = db.get_or_404(Agrovet, agrovet_id)
-    data = get_data()
-    for field in ("name", "ward", "phone", "license_no"):
-        if field in data:
-            setattr(agrovet, field, data[field])
+    for field, value in agrovet_schema.load(get_data(), partial=True).items():
+        setattr(agrovet, field, value)
     db.session.commit()
-    return agrovet.to_dict(), 200
+    return agrovet_schema.dump(agrovet), 200
 
 
 @bp.delete("/agrovets/<int:agrovet_id>")
@@ -121,7 +120,7 @@ def list_input_reports():
     kind = request.args.get("kind", "").strip()
     if kind:
         query = query.filter_by(kind=kind)
-    return paginate(query.order_by(InputReport.created_at.desc())), 200
+    return paginate(query.order_by(InputReport.created_at.desc()), input_report_schema), 200
 
 
 @bp.get("/ai-questions")

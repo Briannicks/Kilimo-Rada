@@ -4,6 +4,7 @@ from config import db
 from helpers import get_data, paginate
 from models import Farmer, Report
 from routes.auth import admin_required, current_user, login_required
+from schemas.report_schemas import report_schema, report_update_schema, reply_schema
 from services import send_sms
 
 bp = Blueprint("reports", __name__)
@@ -26,7 +27,7 @@ def list_reports():
     if ward:
         query = query.join(Farmer).filter(Farmer.ward.ilike(ward))
 
-    return paginate(query.order_by(Report.created_at.desc())), 200
+    return paginate(query.order_by(Report.created_at.desc()), report_schema), 200
 
 
 @bp.post("/reports")
@@ -43,7 +44,7 @@ def create_report():
     )
     db.session.add(report)
     db.session.commit()
-    return report.to_dict(), 201
+    return report_schema.dump(report), 201
 
 
 @bp.get("/reports/<int:report_id>")
@@ -60,13 +61,10 @@ def update_report(report_id):
     #Change a report's status or category
     
     report = db.get_or_404(Report, report_id)
-    data = get_data()
-    if "status" in data:
-        report.status = data["status"]
-    if "category" in data:
-        report.category = data["category"]
+    for field, value in report_update_schema.load(get_data()).items():
+        setattr(report, field, value)
     db.session.commit()
-    return report.to_dict(), 200
+    return report_schema.dump(report), 200
 
 
 @bp.post("/reports/<int:report_id>/reply")
@@ -75,11 +73,7 @@ def reply_to_report(report_id):
     #Reply to a farmer: saves the reply, sends it by SMS and marks the report resolved
     
     report = db.get_or_404(Report, report_id)
-    message = (get_data().get("message") or "").strip()
-    if not message:
-        return {"error": "Reply message cannot be empty"}, 422
-    if len(message) > 450:
-        return {"error": "Reply must be 450 characters or less"}, 422
+    message = reply_schema.load(get_data())["message"]
 
     report.reply = message
     report.replied_by = current_user()
@@ -87,7 +81,7 @@ def reply_to_report(report_id):
     db.session.commit()
 
     sms_result = send_sms([report.farmer.phone], f"KilimoRada: {message}")
-    result = report.to_dict()
+    result = report_schema.dump(report)
     result["sms"] = sms_result
     return result, 200
 

@@ -11,3 +11,4 @@ cloudinary
 gunicorn
 google-genai
 pytest
+marshmallow
