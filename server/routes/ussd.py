@@ -16,7 +16,7 @@ FLAG_AFTER_REPORTS = 3
 MAX_QUESTIONS_PER_HOUR = 3
 
 
-# ---------- small helpers ----------
+# small helpers
 def get_profile(phone):
     profile = UssdProfile.query.filter_by(phone=phone).first()
     if not profile:
@@ -35,7 +35,7 @@ def main_menu(lang, farmer):
 
 
 def show_with_sms(phone, lang, text, rest):
-    """Shows a result with '1. SMS me this'. If the farmer picks 1, it is sent by SMS."""
+    #Shows a result with '1. SMS me this'. If the farmer picks 1, it is sent by SMS.
     t = TEXT[lang]
     if not rest:
         room = MAX_USSD_CHARS - len("CON \n") - len(t["sms_options"])
@@ -47,7 +47,7 @@ def show_with_sms(phone, lang, text, rest):
 
 
 def pick_list(phone, lang, items, rest, make_text):
-    """Menu of 3 items -> result -> optional SMS."""
+    #Menu of 3 items -> result -> optional SMS.
     t = TEXT[lang]
     if not rest:
         options = "\n".join(f"{i}. {item}" for i, item in enumerate(items, start=1))
@@ -58,7 +58,7 @@ def pick_list(phone, lang, items, rest, make_text):
     return show_with_sms(phone, lang, make_text(item, lang), rest[1:])
 
 
-# ---------- one function per main-menu option ----------
+# one function per main-menu option
 def fertilizer(phone, lang, farmer, rest):
     return pick_list(phone, lang, FERTILIZERS, rest, price_text)
 
@@ -184,7 +184,7 @@ OPTIONS = {
 }
 
 
-# ---------- routes ----------
+# Routes
 @bp.post("/ussd")
 def ussd():
     """USSD callback for Africa's Talking
@@ -214,12 +214,8 @@ def ussd():
 
 @bp.post("/ussd/events")
 def ussd_events():
-    """Africa's Talking session events (logs failed sessions)
-    ---
-    tags: [USSD]
-    responses:
-      200: {description: Logged}
-    """
+    #Africa's Talking session events (logs failed sessions)
+    
     status = request.form.get("status", "")
     session_id = request.form.get("sessionId", "")
     if status.lower() == "failed":

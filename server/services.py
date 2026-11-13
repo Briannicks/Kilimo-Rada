@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()  
 
-import cloudinary.uploader  # noqa: E402
-from sendgrid import SendGridAPIClient  # noqa: E402
-from sendgrid.helpers.mail import Mail  # noqa: E402
+import cloudinary.uploader  
+from sendgrid import SendGridAPIClient  
+from sendgrid.helpers.mail import Mail  
 
 ALLOWED_IMAGE_TYPES = {"png", "jpg", "jpeg", "webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
@@ -41,7 +41,7 @@ def send_otp_email(to, code):
 
 
 def upload_image(file, folder="kilimorada/avatars"):
-    """file = request.files['image']. Returns the image URL."""
+    #file = request.files['image']. Returns the image URL.
     if not file or not file.filename:
         raise ValueError("No image uploaded")
 
