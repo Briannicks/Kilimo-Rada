@@ -7,32 +7,44 @@ from dotenv import load_dotenv
 load_dotenv()  # must run before importing cloudinary so it can read CLOUDINARY_URL
 
 import cloudinary.uploader  # noqa: E402
-from sendgrid import SendGridAPIClient  # noqa: E402
-from sendgrid.helpers.mail import Mail  # noqa: E402
+import requests  # noqa: E402
 
 ALLOWED_IMAGE_TYPES = {"png", "jpg", "jpeg", "webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 # ---------- Email (SendGrid) ----------
+# ---------- Email (Brevo HTTPS API: no domain needed, works on Render free) ----------
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+
 def send_email(to, subject, html):
-    api_key = os.environ.get("SENDGRID_API_KEY")
+    api_key = os.environ.get("BREVO_API_KEY")
     if not api_key:
         print(f"[DEV EMAIL] to={to} | {subject}\n{html}", flush=True)
         return True
     try:
-        message = Mail(
-            from_email=os.environ.get("MAIL_FROM", "no-reply@kilimorada.app"),
-            to_emails=to,
-            subject=subject,
-            html_content=html,
+        response = requests.post(
+            BREVO_URL,
+            headers={"api-key": api_key, "accept": "application/json"},
+            json={
+                "sender": {
+                    "name": os.environ.get("MAIL_FROM_NAME", "KilimoRada"),
+                    "email": os.environ["MAIL_FROM"],  # the address you verified in Brevo
+                },
+                "to": [{"email": to}],
+                "subject": subject,
+                "htmlContent": html,
+            },
+            timeout=10,
         )
-        SendGridAPIClient(api_key).send(message)
+        if response.status_code >= 300:
+            print(f"Email failed ({response.status_code}): {response.text}", flush=True)
+            return False
         return True
-    except Exception as error:
+    except requests.RequestException as error:
         print(f"Email failed: {error}", flush=True)
         return False
-
 
 # ---------- KilimoRada emails (uses email_templates.py) ----------
 import email_templates  # noqa: E402

@@ -6,7 +6,7 @@ flasgger
 python-dotenv
 psycopg2-binary
 africastalking
-sendgrid
+requests
 cloudinary
 gunicorn
 google-genai
