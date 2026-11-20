@@ -8,6 +8,7 @@ class FarmerSchema(BaseSchema):
     name = fields.Str(required=True, validate=validate.Length(min=2, max=100))
     phone = fields.Str(required=True, validate=validate.Length(min=9, max=20))
     ward = fields.Str(allow_none=True, validate=validate.Length(max=100))
+    county = fields.String(allow_none=True)
     main_crop = fields.Str(allow_none=True, validate=validate.Length(max=50))
     registered_via = fields.Str(dump_only=True)
     added_by_id = fields.Int(dump_only=True, allow_none=True)

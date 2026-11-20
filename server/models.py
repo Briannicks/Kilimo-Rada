@@ -118,6 +118,7 @@ class Farmer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), unique=True, nullable=False)
+    county = db.Column(db.String(50))  # NEW. null = registered before counties were added
     ward = db.Column(db.String(100))
     main_crop = db.Column(db.String(50))
     registered_via = db.Column(db.String(10), nullable=False, default="web")
@@ -150,6 +151,18 @@ class Farmer(db.Model):
             raise ValueError("Name must be at least 2 characters")
         return value
 
+    @validates("county")
+    def validate_county(self, key, value):
+        """'nakuru' / 'NAKURU COUNTY' / 'muranga' -> official name. Empty -> None."""
+        from kenya import match_county
+
+        if value in (None, ""):
+            return None
+        county = match_county(value)
+        if not county:
+            raise ValueError("Choose a county from the list")
+        return county
+
     @validates("ward", "main_crop")
     def clean_text(self, key, value):
         return value.strip().title() if value else None
@@ -159,7 +172,6 @@ class Farmer(db.Model):
         if value not in ("ussd", "web"):
             raise ValueError("registered_via must be 'ussd' or 'web'")
         return value
-
 
 # ===== Michie: Report, MarketPrice =====
 class Report(db.Model):

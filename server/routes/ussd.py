@@ -1,4 +1,5 @@
 import re
+from kenya import match_county
 
 from flask import Blueprint, current_app, request
 
@@ -9,7 +10,7 @@ from ussd_helpers import (
     questions_this_hour, report_count, run_in_background, sms_later, weather_text,
 )
 from ussd_text import COUNTIES, FERTILIZERS, FUELS, PRODUCE, SEEDS, TEXT
-
+MAX_COUNTY_TRIES = 3
 bp = Blueprint("ussd", __name__)
 
 FLAG_AFTER_REPORTS = 3
@@ -161,14 +162,40 @@ def toggle_language(phone, lang, farmer, rest):
 
 
 def register(phone, lang, farmer, rest):
+    """name -> county (re-asks if wrong, 3 tries) -> ward -> crop"""
     t = TEXT[lang]
     if farmer:
         return end(t["already"].format(name=farmer.name))
-    prompts = [t["reg_name"], t["reg_ward"], t["reg_crop"]]
-    if len(rest) < 3:
-        return con(prompts[len(rest)])
+    if not rest:
+        return con(t["reg_name"])
+
+    name = rest[0]
+
+    # Find the first answer after the name that is a real county.
+    # Wrong answers stay in the USSD text, so we skip over them.
+    county, used, wrong = None, 1, 0
+    while used < len(rest) and county is None:
+        county = match_county(rest[used])
+        used += 1
+        if county is None:
+            wrong += 1
+
+    if county is None:
+        if wrong >= MAX_COUNTY_TRIES:
+            return end(t["reg_county_fail"])
+        return con(t["reg_county"] if wrong == 0 else t["reg_county_retry"])
+
+    after = rest[used:]  # answers given after the county
+    if len(after) == 0:
+        return con(t["reg_ward"])
+    if len(after) == 1:
+        return con(t["reg_crop"])
+
     try:
-        farmer = Farmer(name=rest[0], phone=phone, ward=rest[1], main_crop=rest[2], registered_via="ussd")
+        farmer = Farmer(
+            name=name, phone=phone, county=county, ward=after[0],
+            main_crop=after[1], registered_via="ussd",
+        )
         db.session.add(farmer)
         db.session.commit()
     except ValueError as error:
