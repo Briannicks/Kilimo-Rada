@@ -1,34 +1,55 @@
 from marshmallow import fields, validate
 
+from kenya import COUNTIES
 from schemas.base import BaseSchema
 
 
-class UserSchema(BaseSchema):
-    """What the API returns for a user. password_hash and otp_hash are never included."""
-    id = fields.Int(dump_only=True)
-    name = fields.Str(dump_only=True)
-    email = fields.Str(dump_only=True)
-    role = fields.Str(dump_only=True)
-    avatar_url = fields.Str(dump_only=True, allow_none=True)
-    created_at = fields.DateTime(dump_only=True)
-
-
 class SignupSchema(BaseSchema):
-    name = fields.Str(required=True, validate=validate.Length(min=2, max=100))
+    name = fields.String(required=True, validate=validate.Length(min=2, max=100))
     email = fields.Email(required=True)
-    password = fields.Str(required=True, load_only=True, validate=validate.Length(min=8))
+    password = fields.String(required=True, load_only=True, validate=validate.Length(min=8, max=128))
+    county = fields.String(
+        required=True,
+        validate=validate.OneOf(COUNTIES, error="Choose a county from the list"),
+    )
+    ward = fields.String(required=True, validate=validate.Length(min=2, max=100))
 
 
 class LoginSchema(BaseSchema):
-    email = fields.Str(required=True)
-    password = fields.Str(required=True, load_only=True)
+    email = fields.Email(required=True)
+    password = fields.String(required=True, load_only=True)
 
 
-class OtpSchema(BaseSchema):
-    code = fields.Str(required=True, validate=validate.Length(equal=6))
+class VerifyCodeSchema(BaseSchema):
+    code = fields.String(
+        required=True,
+        validate=validate.Regexp(r"^\d{6}$", error="Enter the 6-digit code"),
+    )
+
+
+class UserSchema(BaseSchema):
+    """What the API sends back for a user (never the password or code)."""
+    id = fields.Integer(dump_only=True)
+    name = fields.String()
+    email = fields.String()
+    role = fields.String()
+    avatar_url = fields.String(allow_none=True)
+    county = fields.String(allow_none=True)
+    ward = fields.String(allow_none=True)
+    is_email_verified = fields.Boolean()
+    is_approved = fields.Boolean()
+    created_at = fields.DateTime()
+
+
+class ProfileUpdateSchema(BaseSchema):
+    name = fields.String(validate=validate.Length(min=2, max=100))
+    county = fields.String(validate=validate.OneOf(COUNTIES, error="Choose a county from the list"))
+    ward = fields.String(validate=validate.Length(min=2, max=100))
+
+
+class RoleSchema(BaseSchema):
+    role = fields.String(required=True, validate=validate.OneOf(("admin", "officer")))
 
 
 user_schema = UserSchema()
-signup_schema = SignupSchema()
-login_schema = LoginSchema()
-otp_schema = OtpSchema()
+users_schema = UserSchema(many=True)

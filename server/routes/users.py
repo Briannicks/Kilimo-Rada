@@ -1,107 +1,197 @@
 from flask import Blueprint, request
 
 from config import db
-from helpers import get_data, paginate
-from models import Broadcast, Farmer, MarketPrice, Report, User
+from models import User
 from routes.auth import admin_required, current_user, login_required
-from schemas.auth_schemas import user_schema
-from schemas.profile_schemas import profile_schema, role_schema
-from schemas.report_schemas import report_schema
-from services import upload_image
+from schemas.auth_schemas import ProfileUpdateSchema, RoleSchema, user_schema, users_schema
+from services import send_approved_email, send_rejected_email, upload_image
 
 bp = Blueprint("users", __name__)
+
+
+def get_user_or_404(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        return None, ({"error": "User not found"}, 404)
+    return user, None
 
 
 @bp.get("/users")
 @admin_required
 def list_users():
-    """List all staff accounts (admin only)
+    """List staff accounts (admin only)
     ---
     tags: [Users]
     parameters:
-      - {name: page, in: query, type: integer}
-      - {name: per_page, in: query, type: integer}
+      - {in: query, name: status, type: string, enum: [pending, active], description: "pending = verified email, waiting for approval"}
+      - {in: query, name: role, type: string, enum: [admin, officer]}
+      - {in: query, name: search, type: string, description: Name or email}
+      - {in: query, name: county, type: string}
+      - {in: query, name: page, type: integer}
+      - {in: query, name: per_page, type: integer}
     responses:
-      200: {description: Paginated users}
-      403: {description: Admins only}
+      200:
+        description: "{ items, page, per_page, total, pages }"
     """
-    return paginate(User.query.order_by(User.created_at.desc()), user_schema), 200
+    query = User.query
+
+    status = request.args.get("status")
+    if status == "pending":
+        query = query.filter(User.is_approved.is_(False), User.is_email_verified.is_(True))
+    elif status == "active":
+        query = query.filter(User.is_approved.is_(True))
+
+    role = request.args.get("role")
+    if role:
+        query = query.filter(User.role == role)
+
+    county = request.args.get("county")
+    if county:
+        query = query.filter(User.county == county)
+
+    search = (request.args.get("search") or "").strip()
+    if search:
+        like = f"%{search}%"
+        query = query.filter(db.or_(User.name.ilike(like), User.email.ilike(like)))
+
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = min(max(request.args.get("per_page", 10, type=int), 1), 50)
+    result = query.order_by(User.created_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    return {
+        "items": users_schema.dump(result.items),
+        "page": result.page,
+        "per_page": result.per_page,
+        "total": result.total,
+        "pages": result.pages,
+    }, 200
+
+
+@bp.patch("/users/<int:user_id>/approve")
+@admin_required
+def approve_user(user_id):
+    """Approve an officer who is waiting (admin only). Emails them.
+    ---
+    tags: [Users]
+    parameters:
+      - {in: path, name: user_id, type: integer, required: true}
+    responses:
+      200:
+        description: The approved user
+      400:
+        description: Email not verified yet, or already approved
+      404:
+        description: User not found
+    """
+    user, error = get_user_or_404(user_id)
+    if error:
+        return error
+    if user.is_approved:
+        return {"error": "This account is already approved"}, 400
+    if not user.is_email_verified:
+        return {"error": "This person has not verified their email yet"}, 400
+
+    user.is_approved = True
+    db.session.commit()
+    send_approved_email(user)
+    return user_schema.dump(user), 200
+
+
+@bp.delete("/users/<int:user_id>/reject")
+@admin_required
+def reject_user(user_id):
+    """Reject an officer who is waiting (admin only). Deletes the signup and emails them.
+    ---
+    tags: [Users]
+    parameters:
+      - {in: path, name: user_id, type: integer, required: true}
+    responses:
+      204:
+        description: Rejected and removed
+      400:
+        description: Account is already approved
+      404:
+        description: User not found
+    """
+    user, error = get_user_or_404(user_id)
+    if error:
+        return error
+    if user.is_approved:
+        return {"error": "Approved accounts can't be rejected"}, 400
+
+    send_rejected_email(user)
+    db.session.delete(user)
+    db.session.commit()
+    return {}, 204
 
 
 @bp.patch("/users/<int:user_id>/role")
 @admin_required
 def change_role(user_id):
-    """Make a user admin or officer (admin only)
+    """Change a user's role (admin only). You can't change your own role.
     ---
     tags: [Users]
     parameters:
-      - {name: user_id, in: path, type: integer, required: true}
+      - {in: path, name: user_id, type: integer, required: true}
       - in: body
         name: body
         schema:
-          example: {role: admin}
+          type: object
+          required: [role]
+          properties:
+            role: {type: string, enum: [admin, officer]}
     responses:
-      200: {description: Role updated}
-      400: {description: Cannot change your own role}
+      200:
+        description: The updated user
+      400:
+        description: Tried to change own role, or account not approved
     """
-    user = db.get_or_404(User, user_id)
+    user, error = get_user_or_404(user_id)
+    if error:
+        return error
     if user.id == current_user().id:
-        return {"error": "You cannot change your own role"}, 400
-    user.role = role_schema.load(get_data())["role"]
+        return {"error": "You can't change your own role"}, 400
+    if not user.is_approved:
+        return {"error": "Approve this account first"}, 400
+
+    data = RoleSchema().load(request.get_json() or {})
+    user.role = data["role"]
     db.session.commit()
     return user_schema.dump(user), 200
 
 
 @bp.patch("/users/me")
 @login_required
-def update_profile():
-    """Update my name and/or avatar. Send JSON {name}, or form-data with 'name' and an 'avatar' file.
+def update_me():
+    """Update my name, county, ward and/or profile picture
     ---
     tags: [Users]
-    consumes: [multipart/form-data, application/json]
+    consumes: [application/json, multipart/form-data]
     parameters:
-      - {name: name, in: formData, type: string}
-      - {name: avatar, in: formData, type: file}
+      - {in: formData, name: name, type: string}
+      - {in: formData, name: county, type: string}
+      - {in: formData, name: ward, type: string}
+      - {in: formData, name: avatar, type: file, description: "png, jpg, jpeg or webp, max 5 MB"}
     responses:
-      200: {description: Profile updated}
-      422: {description: Invalid name or image}
+      200:
+        description: The updated user
     """
     user = current_user()
-    raw = request.form if (request.form or request.files) else get_data()
-    data = profile_schema.load(raw)
 
-    if "name" in data:
-        user.name = data["name"]
-    if "avatar" in request.files:
-        user.avatar_url = upload_image(request.files["avatar"])
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        raw = request.form.to_dict()
+    else:
+        raw = request.get_json() or {}
+    data = ProfileUpdateSchema().load(raw)
+
+    for field in ("name", "county", "ward"):
+        if field in data:
+            setattr(user, field, data[field])
+
+    avatar = request.files.get("avatar")
+    if avatar:
+        user.avatar_url = upload_image(avatar)
 
     db.session.commit()
     return user_schema.dump(user), 200
-
-
-@bp.get("/dashboard")
-@login_required
-def dashboard():
-    """Numbers for the dashboard home page
-    ---
-    tags: [Dashboard]
-    responses:
-      200: {description: Summary counts and recent reports}
-    """
-    categories = {
-        category: Report.query.filter_by(category=category).count()
-        for category in Report.CATEGORIES
-    }
-    recent = Report.query.order_by(Report.created_at.desc()).limit(5).all()
-    sms_sent = db.session.query(db.func.coalesce(db.func.sum(Broadcast.recipient_count), 0)).scalar()
-
-    return {
-        "total_farmers": Farmer.query.count(),
-        "open_reports": Report.query.filter_by(status="open").count(),
-        "resolved_reports": Report.query.filter_by(status="resolved").count(),
-        "market_prices": MarketPrice.query.count(),
-        "broadcasts_sent": Broadcast.query.count(),
-        "sms_sent": int(sms_sent),
-        "reports_by_category": categories,
-        "recent_reports": report_schema.dump(recent, many=True),
-    }, 200

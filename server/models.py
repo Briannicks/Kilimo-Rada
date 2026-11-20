@@ -13,7 +13,6 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-# ===== Cheruu: User =====
 class User(db.Model):
     __tablename__ = "users"
 
@@ -29,6 +28,14 @@ class User(db.Model):
     otp_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=utcnow)
 
+    # ---- NEW: area + approval ----
+    county = db.Column(db.String(50))
+    ward = db.Column(db.String(100))
+    # New signups get False (default). Users already in the database get True
+    # (server_default), so nobody who exists today gets locked out.
+    is_email_verified = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text("true"))
+    is_approved = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text("true"))
+
     # ---- password (write-only) ----
     @property
     def password(self):
@@ -43,8 +50,8 @@ class User(db.Model):
     def authenticate(self, plain_password):
         return bcrypt.check_password_hash(self.password_hash, plain_password)
 
-    # ---- 2FA one-time code ----
-    def generate_otp(self, minutes=5):
+    # ---- one-time codes (email verification + login 2FA) ----
+    def generate_otp(self, minutes=10):
         """Creates a 6-digit code, stores only its hash, returns the plain code to email."""
         code = f"{secrets.randbelow(1_000_000):06d}"
         self.otp_hash = bcrypt.generate_password_hash(code).decode("utf-8")
@@ -58,7 +65,7 @@ class User(db.Model):
             return False
         if not bcrypt.check_password_hash(self.otp_hash, str(code).strip()):
             return False
-        self.otp_hash = None          # a code can only be used once
+        self.otp_hash = None  # a code can only be used once
         self.otp_expires_at = None
         return True
 
@@ -83,7 +90,27 @@ class User(db.Model):
             raise ValueError(f"Role must be one of {self.ROLES}")
         return value
 
+    @validates("county")
+    def validate_county(self, key, value):
+        from kenya import COUNTIES
 
+        if value is None:
+            return None
+        value = value.strip()
+        if value not in COUNTIES:
+            raise ValueError("Choose a county from the list")
+        return value
+
+    @validates("ward")
+    def validate_ward(self, key, value):
+        if value is None:
+            return None
+        value = " ".join(value.split()).title()  # "  tinet  " -> "Tinet"
+        if len(value) < 2:
+            raise ValueError("Ward must be at least 2 characters")
+        return value
+
+    
 # ===== Mwangi: Farmer =====
 class Farmer(db.Model):
     __tablename__ = "farmers"

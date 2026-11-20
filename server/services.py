@@ -34,14 +34,40 @@ def send_email(to, subject, html):
         return False
 
 
-def send_otp_email(to, code):
-    """Used by the login route for 2FA."""
-    html = (
-        "<p>Your KilimoRada login code is:</p>"
-        f"<h2 style='letter-spacing:4px'>{code}</h2>"
-        "<p>It expires in 5 minutes. If you did not try to log in, ignore this email.</p>"
-    )
-    return send_email(to, "Your KilimoRada login code", html)
+# ---------- KilimoRada emails (uses email_templates.py) ----------
+import email_templates  # noqa: E402
+
+OTP_MINUTES = 10
+
+
+def send_verify_email(user, code):
+    subject, html = email_templates.verify_email(user.name, code, OTP_MINUTES)
+    return send_email(user.email, subject, html)
+
+
+def send_otp_email(user, code):
+    """Login 2FA code."""
+    subject, html = email_templates.login_code(user.name, code, OTP_MINUTES)
+    return send_email(user.email, subject, html)
+
+
+def notify_admins_new_officer(officer):
+    from models import User
+
+    admins = User.query.filter_by(role="admin", is_approved=True).all()
+    for admin in admins:
+        subject, html = email_templates.new_officer_waiting(admin.name, officer)
+        send_email(admin.email, subject, html)
+
+
+def send_approved_email(user):
+    subject, html = email_templates.account_approved(user.name)
+    return send_email(user.email, subject, html)
+
+
+def send_rejected_email(user):
+    subject, html = email_templates.account_rejected(user.name)
+    return send_email(user.email, subject, html)
 
 
 # ---------- Images (Cloudinary) ----------
