@@ -4,7 +4,7 @@ from kenya import match_county
 from flask import Blueprint, current_app, request
 
 from config import db
-from models import Agrovet, AiQuestion, Farmer, InputReport, UssdProfile, VerifiedProduct
+from models import Agrovet, AiQuestion, Farmer, InputReport, Report, UssdProfile, VerifiedProduct
 from ussd_helpers import (
     MAX_USSD_CHARS, answer_question, clean_steps, con, end, new_reference, price_lines, price_text,
     questions_this_hour, report_count, run_in_background, sms_later, weather_text,
@@ -94,6 +94,9 @@ def ask_expert(phone, lang, farmer, rest):
         return end(t["ask_limit"])
     saved = AiQuestion(phone=phone, question=question, language=lang)
     db.session.add(saved)
+    if farmer:
+        # Registered farmers' questions also go to the officers' Reports inbox
+        db.session.add(Report(farmer_id=farmer.id, category="other", description=f"Ask Expert: {question}"))
     db.session.commit()
     run_in_background(answer_question, saved.id)
     return end(t["ask_done"])
