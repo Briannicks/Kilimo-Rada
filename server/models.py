@@ -12,6 +12,21 @@ from config import bcrypt, db
 def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+def password_problem(password):
+    """Returns what's wrong with a password, or None if it's strong enough.
+    Rule: 8+ characters with a letter, a number and a symbol, and no spaces."""
+    if not password or len(password) < 8:
+        return "Password must be at least 8 characters"
+    if re.search(r"\s", password):
+        return "Password cannot contain spaces"
+    if not re.search(r"[A-Za-z]", password):
+        return "Password must contain at least one letter"
+    if not re.search(r"\d", password):
+        return "Password must contain at least one number"
+    if not re.search(r"[^A-Za-z0-9\s]", password):
+        return "Password must contain at least one symbol, e.g. ! @ # $"
+    return None
+
 
 class User(db.Model):
     __tablename__ = "users"
@@ -43,8 +58,9 @@ class User(db.Model):
 
     @password.setter
     def password(self, plain_password):
-        if not plain_password or len(plain_password) < 8:
-            raise ValueError("Password must be at least 8 characters")
+        problem = password_problem(plain_password)
+        if problem:
+            raise ValueError(problem)
         self.password_hash = bcrypt.generate_password_hash(plain_password).decode("utf-8")
 
     def authenticate(self, plain_password):

@@ -1,13 +1,19 @@
-from marshmallow import fields, validate
+from marshmallow import ValidationError, fields, validate
 
 from kenya import COUNTIES
+from models import password_problem
 from schemas.base import BaseSchema
 
+
+def strong_password(value):
+    problem = password_problem(value)
+    if problem:
+        raise ValidationError(problem)
 
 class SignupSchema(BaseSchema):
     name = fields.String(required=True, validate=validate.Length(min=2, max=100))
     email = fields.Email(required=True)
-    password = fields.String(required=True, load_only=True, validate=validate.Length(min=8, max=128))
+    password = fields.String(required=True, load_only=True, validate=[validate.Length(max=128), strong_password])
     county = fields.String(
         required=True,
         validate=validate.OneOf(COUNTIES, error="Choose a county from the list"),
