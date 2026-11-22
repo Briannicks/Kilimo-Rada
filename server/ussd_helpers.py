@@ -14,7 +14,8 @@ from flask import Response, current_app
 from config import db
 from models import AiQuestion, Farmer, InputReport, MarketPrice, Report, utcnow
 from services import send_sms
-from ussd_text import COUNTIES, TEXT
+from kenya import COUNTY_COORDS          # CHANGED: coordinates for all 47 counties
+from ussd_text import TEXT               # CHANGED: no longer imports COUNTIES
 
 MAX_USSD_CHARS = 182
 MAX_SMS_ANSWER = 140
@@ -85,13 +86,16 @@ def price_text(item, lang):
 
 
 # Live weather (Open-Meteo, free, no key)
+WEATHER_TIMEOUT = 8  # seconds. A cold or slow server can need more than 4   # CHANGED (was 4)
+
+
 def weather_text(county, lang):
     t = TEXT[lang]
     cached = _weather_cache.get(county)
     if cached and time.time() - cached[0] < 30 * 60:
         data = cached[1]
     else:
-        lat, lon = COUNTIES[county]
+        lat, lon = COUNTY_COORDS[county]     # CHANGED: works for any of the 47 counties
         url = (
             "https://api.open-meteo.com/v1/forecast"
             f"?latitude={lat}&longitude={lon}"
@@ -99,12 +103,16 @@ def weather_text(county, lang):
             "&timezone=Africa%2FNairobi&forecast_days=1"
         )
         try:
-            with urllib.request.urlopen(url, timeout=4) as response:
+            with urllib.request.urlopen(url, timeout=WEATHER_TIMEOUT) as response:
                 data = json.loads(response.read())["daily"]
             _weather_cache[county] = (time.time(), data)
         except Exception as error:
-            print(f"Weather failed: {error}")
-            return t["weather_fail"]
+            # CHANGED: the error type tells you the cause (HTTPError 429 = rate limited,
+            # URLError = no network, timeout, KeyError = unexpected reply)
+            print(f"Weather failed for {county}: {type(error).__name__}: {error}", flush=True)
+            if not cached:
+                return t["weather_fail"]
+            data = cached[1]  # CHANGED: fall back to the last good forecast instead of an error
     return t["weather"].format(
         county=county,
         tmin=round(data["temperature_2m_min"][0]),
@@ -150,8 +158,8 @@ def answer_question(question_id):
     db.session.commit()
     send_sms([question.phone], f"KilimoRada: {question.answer}")
 
-    # FIX: ask_expert already created this farmer's report, so attach the AI answer to it
-    # instead of adding a second report (one question used to create two).
+    # Registered farmers' questions are also in the reports inbox so an officer can check the AI answer.
+    # ask_expert already created that report, so attach the answer to it instead of adding a second one.
     farmer = Farmer.query.filter_by(phone=question.phone).first()
     if farmer:
         description = f"Ask Expert: {question.question}"

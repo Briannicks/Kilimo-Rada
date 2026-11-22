@@ -9,9 +9,15 @@ from ussd_helpers import (
     MAX_USSD_CHARS, answer_question, clean_steps, con, end, new_reference, price_lines, price_text,
     questions_this_hour, report_count, run_in_background, sms_later, weather_text,
 )
-from ussd_text import COUNTIES, FERTILIZERS, FUELS, PRODUCE, SEEDS, TEXT
+from ussd_text import FERTILIZERS, FUELS, PRODUCE, SEEDS, TEXT     # CHANGED: no COUNTIES any more
 MAX_COUNTY_TRIES = 3
 bp = Blueprint("ussd", __name__)
+
+# NEW: the registration switch.
+# False: only the weather option needs registration (it needs the farmer's county).
+# True:  a phone that is not registered can ONLY register (11) or switch language (10).
+REQUIRE_REGISTRATION = False
+OPEN_TO_EVERYONE = {"10", "11"}
 
 FLAG_AFTER_REPORTS = 3
 MAX_QUESTIONS_PER_HOUR = 3
@@ -29,6 +35,9 @@ def get_profile(phone):
 
 def main_menu(lang, farmer):
     t = TEXT[lang]
+    # NEW: when registration is required, unregistered phones only see Register and Language
+    if REQUIRE_REGISTRATION and not farmer:
+        return f"KilimoRada\n{t['register_welcome']}\n11. {t['register']}\n10. {t['menu'][9]}"
     lines = [f"{i}. {name}" for i, name in enumerate(t["menu"], start=1)]
     if not farmer:
         lines.append(f"11. {t['register']}")
@@ -102,8 +111,18 @@ def ask_expert(phone, lang, farmer, rest):
     return end(t["ask_done"])
 
 
+# CHANGED: weather of the county the farmer registered with. No county menu.
 def weather(phone, lang, farmer, rest):
-    return pick_list(phone, lang, list(COUNTIES), rest, weather_text)
+    """Weather of the county the farmer registered with. No menu: nothing to choose."""
+    t = TEXT[lang]
+    if not farmer:
+        return end(t["weather_register"])
+    if not farmer.county:  # e.g. added from the web dashboard without a county
+        return end(t["weather_no_county"])
+    text = weather_text(farmer.county, lang)
+    if text == t["weather_fail"]:
+        return end(text)  # no point offering to SMS an error message
+    return show_with_sms(phone, lang, text, rest)
 
 
 def agrovets(phone, lang, farmer, rest):
@@ -134,9 +153,9 @@ def report_fake(phone, lang, farmer, rest):
     try:
         report = InputReport(reference=new_reference(), phone=phone, kind=kind, value=value)
         db.session.add(report)
-        # FIX: registered farmers' reports also reach the officers' Reports inbox (like Ask Expert does).
-        # Phones that never registered stay on the USSD Activity page only: a Report needs a farmer.
         if farmer:
+            # Registered farmers' reports also reach the officers' Reports inbox (like Ask Expert does).
+            # Phones that never registered stay on the USSD Activity page only: a Report needs a farmer.
             label = "Fake batch code" if kind == "batch_code" else "Scam phone number"
             db.session.add(Report(
                 farmer_id=farmer.id,
@@ -248,6 +267,9 @@ def ussd():
     handler = OPTIONS.get(steps[0])
     if not handler:
         return end(TEXT[lang]["invalid"])
+    # NEW: when registration is required, an unregistered phone may only register or switch language
+    if REQUIRE_REGISTRATION and not farmer and steps[0] not in OPEN_TO_EVERYONE:
+        return end(TEXT[lang]["register_first"])
     return handler(phone, lang, farmer, steps[1:])
 
 

@@ -34,6 +34,10 @@ TEXT = {
         "expert_unavailable": "Sorry, the expert is not available now. Please try again later.",
         "weather": "{county} today: {tmin} to {tmax} C, rain chance {rain} percent.",
         "weather_fail": "Weather is not available now. Try again later.",
+        "weather_register": "Register first to get the weather of your county. Dial again and choose 11.",   # NEW
+        "weather_no_county": "We do not have your county yet. Ask an extension officer to add it.",          # NEW
+        "register_first": "Please register first. Dial again and choose 11 to register.",                    # NEW
+        "register_welcome": "Register to use KilimoRada.",                                                    # NEW
         "agrovets_title": "Verified agrovets:",
         "no_agrovets": "No verified agrovets listed yet.",
         "report_menu": "Report:\n1. Fake batch code\n2. Scam phone number\n0. Back",
@@ -78,6 +82,10 @@ TEXT = {
         "expert_unavailable": "Samahani, mtaalamu hapatikani sasa. Jaribu tena baadaye.",
         "weather": "{county} leo: {tmin} hadi {tmax} C, uwezekano wa mvua asilimia {rain}.",
         "weather_fail": "Hali ya hewa haipatikani sasa. Jaribu tena baadaye.",
+        "weather_register": "Jisajili kwanza ili upate hali ya hewa ya kaunti yako. Piga tena uchague 11.",   # NEW
+        "weather_no_county": "Hatuna kaunti yako bado. Mwombe afisa wa kilimo aiweke.",                        # NEW
+        "register_first": "Tafadhali jisajili kwanza. Piga tena uchague 11 kujisajili.",                       # NEW
+        "register_welcome": "Jisajili ili kutumia KilimoRada.",                                                 # NEW
         "agrovets_title": "Maduka halali:",
         "no_agrovets": "Hakuna maduka halali yaliyoorodheshwa bado.",
         "report_menu": "Ripoti:\n1. Nambari ya bechi feki\n2. Nambari ya simu ya utapeli\n0. Rudi",
