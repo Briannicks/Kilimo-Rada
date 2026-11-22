@@ -150,15 +150,20 @@ def answer_question(question_id):
     db.session.commit()
     send_sms([question.phone], f"KilimoRada: {question.answer}")
 
-    # Registered farmers' questions also go to the reports inbox so an officer can check the AI answer
+    # FIX: ask_expert already created this farmer's report, so attach the AI answer to it
+    # instead of adding a second report (one question used to create two).
     farmer = Farmer.query.filter_by(phone=question.phone).first()
     if farmer:
-        db.session.add(Report(
-            farmer=farmer,
-            category="other",
-            description=f"Ask Expert: {question.question}",
-            reply=f"AI answer sent: {question.answer}",
-        ))
+        description = f"Ask Expert: {question.question}"
+        report = (
+            Report.query.filter_by(farmer_id=farmer.id, description=description, reply=None)
+            .order_by(Report.created_at.desc(), Report.id.desc())
+            .first()
+        )
+        if report is None:  # should not happen, but never lose the answer
+            report = Report(farmer=farmer, category="other", description=description)
+            db.session.add(report)
+        report.reply = f"AI answer sent: {question.answer}"
         db.session.commit()
 
 

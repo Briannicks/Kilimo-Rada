@@ -1,5 +1,6 @@
 """External services used across the app: email (SendGrid), images (Cloudinary), SMS (Africa's Talking).
 If an API key is missing, functions print instead of failing, so local dev still works."""
+import json                                   # FIX: new import
 import os
 
 from dotenv import load_dotenv
@@ -106,32 +107,70 @@ def upload_image(file, folder="kilimorada/avatars"):
     return result["secure_url"]
 
 
-# ---------- SMS (Africa's Talking) ----------
+# ---------- SMS (Africa's Talking) ----------   # FIX: everything below is rewritten
+# Africa's Talking status codes that mean the message was accepted: Processed, Sent, Queued
+SMS_OK_CODES = {"100", "101", "102"}
+
+
+def _sms_failed(count, reason):
+    print(f"SMS failed: {reason}", flush=True)
+    return {"sent": 0, "failed": count, "error": reason}
+
+
 def send_sms(phone_numbers, message):
-    """Sends one SMS to a list of numbers like ['+254712345678']."""
-    phone_numbers = [phone for phone in phone_numbers if phone]
-    if not phone_numbers:
+    """Sends one SMS to a list of numbers like ['+254712345678'].
+    Returns {"sent": n, "failed": n}, plus "error" when nothing could be sent.
+
+    Sandbox note: with AT_USERNAME=sandbox, messages are NOT delivered to real phones.
+    They only appear in the Africa's Talking simulator for the number you launched there.
+    """
+    from models import Farmer  # imported here to avoid a circular import
+
+    # Same number format everywhere (0712... -> +254712...), no blanks, no duplicates
+    numbers = list(dict.fromkeys(Farmer.normalize_phone(phone) for phone in phone_numbers if phone))
+    if not numbers:
         return {"sent": 0, "failed": 0}
 
-    username = os.environ.get("AT_USERNAME", "sandbox")
-    api_key = os.environ.get("AT_API_KEY")
+    # .strip(): a trailing space or newline pasted into a hosting dashboard breaks the request
+    username = (os.environ.get("AT_USERNAME") or "sandbox").strip()
+    api_key = (os.environ.get("AT_API_KEY") or "").strip()
+
     if not api_key:
-        print(f"[DEV SMS] AT_API_KEY not set, SMS NOT sent. to={phone_numbers} | {message}", flush=True)
-        return {"sent": len(phone_numbers), "failed": 0}
+        # For local dev without a key, put SMS_DRY_RUN=true in your .env
+        if os.environ.get("SMS_DRY_RUN", "").strip().lower() == "true":
+            print(f"[DRY RUN SMS] to={numbers} | {message}", flush=True)
+            return {"sent": len(numbers), "failed": 0}
+        # Report the truth instead of "sent": the dashboard must not say farmers were texted when they were not
+        return _sms_failed(len(numbers), "AT_API_KEY is not set on the server, so no SMS can be sent")
 
     try:
-        import africastalking
+        from africastalking.SMS import SMSService
 
-        africastalking.initialize(username, api_key)
-        response = africastalking.SMS.send(message, phone_numbers)
-        print(f"SMS response (username={username}): {response}", flush=True)
-
-        data = response.get("SMSMessageData", {})
-        recipients = data.get("Recipients", [])
-        if not recipients:
-            return {"sent": 0, "failed": len(phone_numbers), "error": data.get("Message", "No recipients")}
-        sent = sum(1 for recipient in recipients if recipient.get("status") == "Success")
-        return {"sent": sent, "failed": len(recipients) - sent}
+        # A fresh client per call. africastalking.initialize() swaps module-level globals,
+        # which is not safe when several USSD background threads send at the same time.
+        response = SMSService(username, api_key).send(message, numbers)
     except Exception as error:
-        print(f"SMS failed (username={username}): {error}", flush=True)
-        return {"sent": 0, "failed": len(phone_numbers), "error": str(error)}
+        return _sms_failed(len(numbers), f"{type(error).__name__}: {error} (username={username})")
+
+    # The SDK only returns a dict when the reply's content-type is exactly "application/json".
+    # Anything else (e.g. "application/json;charset=UTF-8") comes back as raw text, so parse it here.
+    if isinstance(response, (str, bytes)):
+        try:
+            response = json.loads(response)
+        except ValueError:
+            return _sms_failed(len(numbers), f"Unexpected reply from Africa's Talking: {str(response)[:200]}")
+
+    print(f"SMS response (username={username}): {response}", flush=True)
+    data = response.get("SMSMessageData", {}) if isinstance(response, dict) else {}
+    recipients = data.get("Recipients") or []
+    if not recipients:
+        return {"sent": 0, "failed": len(numbers), "error": data.get("Message") or "No recipients"}
+
+    accepted = [
+        r for r in recipients
+        if r.get("status") == "Success" or str(r.get("statusCode")) in SMS_OK_CODES
+    ]
+    result = {"sent": len(accepted), "failed": len(numbers) - len(accepted)}
+    if not accepted:
+        result["error"] = recipients[0].get("status") or data.get("Message") or "Rejected"
+    return result

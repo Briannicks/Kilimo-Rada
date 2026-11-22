@@ -134,6 +134,15 @@ def report_fake(phone, lang, farmer, rest):
     try:
         report = InputReport(reference=new_reference(), phone=phone, kind=kind, value=value)
         db.session.add(report)
+        # FIX: registered farmers' reports also reach the officers' Reports inbox (like Ask Expert does).
+        # Phones that never registered stay on the USSD Activity page only: a Report needs a farmer.
+        if farmer:
+            label = "Fake batch code" if kind == "batch_code" else "Scam phone number"
+            db.session.add(Report(
+                farmer_id=farmer.id,
+                category="other",
+                description=f"Fake input report: {label} {report.value} (ref {report.reference})",
+            ))
         db.session.commit()
     except ValueError:
         db.session.rollback()

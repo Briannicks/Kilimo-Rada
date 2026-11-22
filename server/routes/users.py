@@ -1,9 +1,10 @@
 from flask import Blueprint, request
 
 from config import db
-from models import User
+from models import Broadcast, Farmer, MarketPrice, Report, User          # FIX: added Broadcast, Farmer, MarketPrice, Report
 from routes.auth import admin_required, current_user, login_required
 from schemas.auth_schemas import ProfileUpdateSchema, RoleSchema, user_schema, users_schema
+from schemas.report_schemas import report_schema                          # FIX: new import
 from services import send_approved_email, send_rejected_email, upload_image
 
 bp = Blueprint("users", __name__)
@@ -195,3 +196,35 @@ def update_me():
 
     db.session.commit()
     return user_schema.dump(user), 200
+
+
+# FIX: NEW ROUTE. The frontend Dashboard calls GET /api/dashboard, which did not exist (404 "Not found").
+@bp.get("/dashboard")
+@login_required
+def dashboard():
+    """Numbers for the dashboard home page
+    ---
+    tags: [Dashboard]
+    responses:
+      200:
+        description: Counts, reports by category and the 5 newest reports
+    """
+    by_status = dict(db.session.query(Report.status, db.func.count(Report.id)).group_by(Report.status).all())
+    by_category = dict(db.session.query(Report.category, db.func.count(Report.id)).group_by(Report.category).all())
+    recent = Report.query.order_by(Report.created_at.desc(), Report.id.desc()).limit(5).all()
+
+    # The app keeps no SMS log, so "SMS sent" counts what the dashboard itself sends:
+    # every broadcast recipient plus every reply an officer sent to a farmer.
+    broadcast_sms = db.session.query(db.func.coalesce(db.func.sum(Broadcast.recipient_count), 0)).scalar()
+    reply_sms = Report.query.filter(Report.replied_by_id.isnot(None)).count()
+
+    return {
+        "total_farmers": Farmer.query.count(),
+        "open_reports": by_status.get("open", 0),
+        "resolved_reports": by_status.get("resolved", 0),
+        "market_prices": MarketPrice.query.count(),
+        "broadcasts_sent": Broadcast.query.count(),
+        "sms_sent": int(broadcast_sms) + reply_sms,
+        "reports_by_category": {name: by_category.get(name, 0) for name in Report.CATEGORIES},
+        "recent_reports": report_schema.dump(recent, many=True),
+    }, 200
